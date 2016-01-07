@@ -10,7 +10,53 @@
 #endif
 
 #define MEM_SIZE (128)
-#define MAX_SOURCE_SIZE (0x100000)
+#define MAX_SOURCE_SIZE (0x100000) //1MB
+
+#define DEBUG 1
+
+
+/*
+int main ( int arc, char **argv )
+{
+
+
+
+
+}
+*/
+
+void printDebug(char string[])
+{
+	if (DEBUG == 1) fprintf(stdout, "DEBUG: %s %s",string,"\n");
+}
+
+void printError(char string[])
+{
+	fprintf(stderr, "ERROR: %s %s",string,"\n");
+}
+
+
+/**
+ * [IN] fileName = the name of the kernel file
+ * [OUT] source_str = the file content
+ * [OUT] source_size = the file size
+ */
+void readKernel(char fileName[],char* source_str,size_t* source_size)
+{
+	  FILE *fp;
+
+	  fp = fopen(fileName, "r");
+	  if (fp == NULL)
+	  {
+		  fprintf(stderr, "ERROR: Failed to load kernel.\n");
+		  exit(1);
+	  }
+
+	  *source_size = fread( source_str, 1, MAX_SOURCE_SIZE, fp);
+	  fclose( fp );
+}
+
+
 
 int main()
 {
@@ -25,21 +71,13 @@ int main()
   cl_uint ret_num_platforms;
   cl_int ret;
 
-  char string[MEM_SIZE];
+  printDebug("Program started");
 
-  FILE *fp;
-  char fileName[] = "./OpenCL_Image_Blur_Kernel.cl";
-  char *source_str;
+  char* source_str = (char*)malloc(MAX_SOURCE_SIZE);
   size_t source_size;
+  readKernel("./OpenCL_Image_Blur_Kernel.cl",source_str,&source_size);
 
-  fp = fopen(fileName, "r");
-  if (!fp) {
-    fprintf(stderr, "Failed to load kernel.\n");
-    exit(1);
-  }
-  source_str = (char*)malloc(MAX_SOURCE_SIZE);
-  source_size = fread( source_str, 1, MAX_SOURCE_SIZE, fp);
-  fclose( fp );
+  printDebug("Kernel Loaded");
 
   ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
   ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, &ret_num_devices);
@@ -66,6 +104,7 @@ int main()
   ret = clEnqueueTask(command_queue, kernel, 0, NULL,NULL);
 
 
+  char string[MEM_SIZE];
   ret = clEnqueueReadBuffer(command_queue, memobj, CL_TRUE, 0,
 			                MEM_SIZE * sizeof(char),string, 0, NULL, NULL);
 
@@ -81,6 +120,7 @@ int main()
   ret = clReleaseCommandQueue(command_queue);
   ret = clReleaseContext(context);
 
+  printDebug("Kernel File Freed from memory");
   free(source_str);
 
   return 0;
