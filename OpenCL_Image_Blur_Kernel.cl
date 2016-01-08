@@ -1,19 +1,17 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 
-__kernel void hello(__global char* string)
+__kernel void blur(__global unsigned char* inputImage,__global unsigned char* blurFilter,__global unsigned char* outputImage)
 {
-   string[0] = 'H';
-   string[1] = 'e';
-   string[2] = 'l';
-   string[3] = 'l';
-   string[4] = 'o';
-   string[5] = ',';
-   string[6] = ' ';
-   string[7] = 'W';
-   string[8] = 'o';
-   string[9] = 'r';
-   string[10] = 'l';
-   string[11] = 'd';
-   string[12] = '!';
-   string[13] = '\0';
+   // int x = get_global_id(0);
+   // int y = get_global_id(1);
+   // if (x < 512 && y < 512)
+   
+  	 
+  	
+  	 
+  	 
+    int i = get_global_id(0);
+    if (i < 512*512)
+  	 outputImage[i] = ~inputImage[i];
+  	 //inputImage[x][y]
 }
