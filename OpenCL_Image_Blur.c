@@ -13,8 +13,8 @@
 
 #define DEBUG 1
 #define USE_GPU 1
-#define PARALLEL 1
-#define KERNEL_FILE_NAME "NegativeKernel.cl"
+//#define PARALLEL 1
+#define KERNEL_FILE_NAME "OpenCL_Image_Blur_Kernel.cl"
 
 
 
@@ -33,10 +33,10 @@ struct options
 	int filter_size;
 
 	int image_input_flag; //-i option
-	int image_input;
+	char* image_input;
 
 	int image_output_flag; //-o option
-	int image_output;
+	char* image_output;
 
 }*options_args;
 
@@ -68,6 +68,7 @@ int height;
 cl_mem inputImage;
 cl_mem outputImage;
 unsigned char* imgOutput;
+int* filterMatrix;
 
 
 void check_error(char* message,int error_code)
@@ -91,50 +92,84 @@ void check_error(char* message,int error_code)
  */
 void process_args(int argc, char** argv)
 {
+
 	if (argc == 1)
 	{
 		help();
 		exit(1);
 	}
 
-	char *optString = "-f:-i:-o:";
+	char *optString = "-i:-o:-f:";
 
 	options_args = (struct options*) malloc(sizeof(struct options));
-	int opt = getopt(argc, argv, optString);
+
+	int opt;
+	  while ((opt = getopt(argc, argv, optString)) != -1)
+	  {
+			switch (opt)
+			{
+			  case 'i':
+						options_args->image_input_flag = 1;
+						options_args->image_input = optarg;
+
+						break;
+			  case 'o':
+						  options_args->image_output_flag = 1;
+						  options_args->image_output = optarg;
+
+						  break;
+			   case 'f':
+						  options_args->filter_size_flag = 1;
+						 options_args->filter_size = atoi(optarg);
+						break;
+
+			default: break;
+			}
+	  }
+
+	  printf ("Input file:  \"%s\"\n", options_args->image_input);
+	  printf ("Output file: \"%s\"\n", options_args->image_output);
+	  printf ("Filter size: \"%d\"\n", options_args->filter_size);
+		//exit(222);
+	  /*
+
+	 opt = getopt(argc, argv, optString);
 	while (opt != -1)
 	{
 		switch (opt)
 		{
-		case 'f':
-			options_args->filter_size_flag = 1;
-			options_args->filter_size = atoi(optarg);
-			break;
-		case 'i':
-			options_args->image_input_flag = 1;
-			options_args->image_input = atoi(optarg);
-			break;
-		case 'o':
-			options_args->image_output_flag = 1;
-			options_args->image_output = atoi(optarg);
-			break;
+			case 'f':
+				options_args->filter_size_flag = 1;
+				options_args->filter_size = atoi(optarg);
+				break;
+			case 'i':
+				options_args->image_input_flag = 1;
+				options_args->image_input = optarg;
+				break;
+			case 'o':
+				options_args->image_output_flag = 1;
+				options_args->image_output = optarg;
+				break;
 
-		default:
-			break;
+			default:
+				break;
 		}
 		opt = getopt(argc, argv, optString);
 	}
+	*/
 
 	//if all args OK
 	if (options_args->image_input_flag && options_args->filter_size_flag && options_args->image_output_flag)
 	{
-		fprintf(stdout,"Arguments ok!");
+		fprintf(stdout,"DEBUG: Arguments... OK\n");
 	}
 	else
 	{
-		fprintf(stderr,"Arguments error!");
+		fprintf(stderr,"ERROR: Arguments... MISSING\n");
 		help();
 		exit(1);
 	}
+
 
 }
 
@@ -171,7 +206,8 @@ void read_kernel_file()
 
 void read_image_file()
 {
-	int status = pgm_load(&img, &height, &width, "images\\Lena-512x512.pgm");
+	int status = pgm_load(&img, &height, &width,  options_args->image_input);
+	//printf("%d",ret);
 	check_error("Reading image file... ",status);
 }
 
@@ -189,7 +225,8 @@ void create_and_fill_memory_buffers()
 {
 	inputImage = clCreateBuffer(context, CL_MEM_READ_ONLY, width * height * sizeof(unsigned char), NULL, &ret);
 	check_error("Creating input image buffer... ",ret);
-	ret = clEnqueueWriteBuffer(command_queue, inputImage, CL_TRUE, 0, 262144, img, 0, NULL, NULL);
+
+	ret = clEnqueueWriteBuffer(command_queue, inputImage, CL_TRUE, 0, (width*height), img, 0, NULL, NULL);
 	check_error("Writing input image to GPU... ",ret);
 	outputImage = clCreateBuffer(context, CL_MEM_WRITE_ONLY, width * height * sizeof(unsigned char), NULL, &ret);
 	check_error("Creating output image buffer... ",ret);
@@ -197,48 +234,16 @@ void create_and_fill_memory_buffers()
 
 void set_kernel_args()
 {
-
-	//cl_mem blurFilter = inputImage;
-	//cl_mem filterSize = NULL;
-
-	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &inputImage);
-	check_error("clSetKernelArg input_image... ",ret);
-	ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *) &inputImage);
-	check_error("clSetKernelArg blur_filter... ",ret);
-	ret = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *) &outputImage);
-	check_error("clSetKernelArg output_image... ",ret);
-	/*
-	 ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), (void *)&width);
-	 if (ret == CL_SUCCESS)
-	 {
-	 printDebug("clSetKernelArg 3 OK");
-	 }
-	 else
-	 {
-	 printError("clSetKernelArg 3 ERROR");
-	 exit(1);
-	 }
-	 ret = clSetKernelArg(kernel, 4, sizeof(cl_mem), (void *)&height);
-	 if (ret == CL_SUCCESS)
-	 {
-	 printDebug("clSetKernelArg 4 OK");
-	 }
-	 else
-	 {
-	 printError("clSetKernelArg 4 ERROR");
-	 exit(1);
-	 }
-	 ret = clSetKernelArg(kernel, 5, sizeof(cl_mem), (void *)&filterSize);
-	 if (ret == CL_SUCCESS)
-	 {
-	 printDebug("clSetKernelArg 4 OK");
-	 }
-	 else
-	 {
-	 printError("clSetKernelArg 4 ERROR");
-	 exit(1);
-	 }
-	 */
+	 ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &inputImage);
+	 check_error("clSetKernelArg input_image... ",ret);
+	 ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *) &outputImage);
+	 check_error("clSetKernelArg output_image... ",ret);
+	 ret = clSetKernelArg(kernel, 2, sizeof(int), (void *)&width);
+	 check_error("clSetKernelArg width... ",ret);
+	 ret = clSetKernelArg(kernel, 3, sizeof(int), (void *)&height);
+	 check_error("clSetKernelArg height... ",ret);
+	 ret = clSetKernelArg(kernel, 4, sizeof(int), (void *)&options_args->filter_size);
+	 check_error("clSetKernelArg filter size... ",ret);
 }
 
 void start_kernel()
@@ -261,8 +266,8 @@ void read_output_image()
 void save_image()
 {
 	//REGION save the image
-	int status = pgm_save(imgOutput, height, width, "images_output\\Lena-512x512_BLURRED.pgm");
-	check_error("Save image to file... ",ret);
+	int status = pgm_save(imgOutput, height, width, options_args->image_output);
+	check_error("Save image to file... ",status);
 }
 
 
@@ -270,21 +275,32 @@ void save_image()
 void free_resources()
 {
 	ret = clFlush(command_queue);
-	ret = clFinish(command_queue);
-	ret = clReleaseKernel(kernel);
-	ret = clReleaseProgram(program);
-	ret = clReleaseMemObject(inputImage);
-	ret = clReleaseMemObject(outputImage);
-	ret = clReleaseCommandQueue(command_queue);
-	ret = clReleaseContext(context);
+	ret |= clFinish(command_queue);
+	ret |= clReleaseKernel(kernel);
+	ret |= clReleaseProgram(program);
+	ret |= clReleaseMemObject(inputImage);
+	ret |= clReleaseMemObject(outputImage);
+	ret |= clReleaseCommandQueue(command_queue);
+	ret |= clReleaseContext(context);
+	check_error("Free resources... ",ret);
+	free(options_args);
 	free(kernel_str);
 	free(imgOutput);
+	free(filterMatrix);
+
+}
+
+void generate_filter()
+{
+	int filterMatrixSize = options_args->filter_size*options_args->filter_size;
+	filterMatrix = (int*)malloc(filterMatrixSize);
 }
 
 int main(int argc, char** argv)
 {
 	process_args(argc, argv);
 	init_opencl();
+	//generate_filter();
 	read_kernel_file();
 	read_image_file();
 	build_kernel();
