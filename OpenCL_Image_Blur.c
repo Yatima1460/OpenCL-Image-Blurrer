@@ -221,16 +221,68 @@ void build_kernel()
 	check_error("clCreateKernel... ",ret);
 }
 
+
+int k = 27+17;
+
 void create_and_fill_memory_buffers()
 {
 	inputImage = clCreateBuffer(context, CL_MEM_READ_ONLY, width * height * sizeof(unsigned char), NULL, &ret);
 	check_error("Creating input image buffer... ",ret);
-
-	ret = clEnqueueWriteBuffer(command_queue, inputImage, CL_TRUE, 0, (width*height), img, 0, NULL, NULL);
+	ret = clEnqueueWriteBuffer(command_queue, inputImage, CL_TRUE, 0, (width)*(height), img, 0, NULL, NULL);
 	check_error("Writing input image to GPU... ",ret);
-	outputImage = clCreateBuffer(context, CL_MEM_WRITE_ONLY, width * height * sizeof(unsigned char), NULL, &ret);
+
+	outputImage = clCreateBuffer(context, CL_MEM_WRITE_ONLY, ((width) * (height) * sizeof(unsigned char)), NULL, &ret);
 	check_error("Creating output image buffer... ",ret);
 }
+
+
+void read_output_image()
+{
+	imgOutput = malloc(width * height * sizeof(unsigned char));
+	check_error("Malloc image output from GPU... ",ret);
+	ret = clEnqueueReadBuffer(command_queue, outputImage, CL_TRUE, 0, ((width) * (height) * sizeof(unsigned char)), imgOutput, 0, NULL, NULL);
+	check_error("clEnqueueReadBuffer... ",ret);
+}
+
+void save_image()
+{
+	//REGION save the image
+
+	int newImageSize = (height-options_args->filter_size+1)*(width-options_args->filter_size+1);
+	unsigned char* borderlessImage = malloc(newImageSize);
+
+	int var;
+	for (var = 0; var < newImageSize; ++var)
+	{
+		borderlessImage[var]=255;
+	}
+
+	int i = 0;
+	int k = 0;
+	while(1)
+	{
+		if (k == newImageSize) break;
+
+		if (i % width > width - options_args->filter_size)
+		{
+			//empty zone
+
+		}
+		else
+		{
+			borderlessImage[k] = imgOutput[i];
+			k++;
+		}
+
+
+		i++;
+	}
+
+	int status = pgm_save(borderlessImage, height-options_args->filter_size+1, width-options_args->filter_size+1, options_args->image_output);
+	free(borderlessImage);
+	check_error("Save image to file... ",status);
+}
+
 
 void set_kernel_args()
 {
@@ -255,20 +307,7 @@ void start_kernel()
 	check_error("clEnqueueNDRangeKernel... ",ret);
 }
 
-void read_output_image()
-{
-	imgOutput = malloc(width * height * sizeof(unsigned char));
-	check_error("Malloc image output from GPU... ",ret);
-	ret = clEnqueueReadBuffer(command_queue, outputImage, CL_TRUE, 0, width * height * sizeof(char), imgOutput, 0, NULL, NULL);
-	check_error("clEnqueueReadBuffer... ",ret);
-}
 
-void save_image()
-{
-	//REGION save the image
-	int status = pgm_save(imgOutput, height, width, options_args->image_output);
-	check_error("Save image to file... ",status);
-}
 
 
 
